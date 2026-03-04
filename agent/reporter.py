@@ -19,11 +19,51 @@ from agent.utils import pct_fmt
 logger = logging.getLogger(__name__)
 
 
+def _nf(value, decimals=1):
+    """Safe number format. Returns formatted string or 'N/A'."""
+    if value is None:
+        return "N/A"
+    try:
+        return f"{float(value):.{decimals}f}"
+    except (ValueError, TypeError):
+        return str(value)
+
+
+def _npct(value):
+    """Safe percent format from decimal (0.05 -> '5%')."""
+    if value is None:
+        return "N/A"
+    try:
+        return f"{float(value) * 100:.0f}%"
+    except (ValueError, TypeError):
+        return str(value)
+
+
+def _safe_float(value, default=0.0):
+    """Safely convert to float."""
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
+
 def generate_report(week_id, market_state, regime, regime_confidence,
                     allocation, metrics, learning_result):
     """Generate full HTML report. Returns HTML string."""
     signals = market_state.get("signals", {})
     macro = market_state.get("macro", {})
+
+    vix_current = _nf(signals.get("vix_current"), 1)
+    vix_ma20 = _nf(signals.get("vix_ma20"), 1)
+    spy_mom_21 = pct_fmt(signals.get("spy_momentum_21d"))
+    spy_mom_63 = pct_fmt(signals.get("spy_momentum_63d"))
+    yield_spread = _nf(signals.get("yield_spread", 0), 2)
+    breadth = _npct(signals.get("breadth_positive", 0))
+    eq_bond_corr = _nf(signals.get("equity_bond_corr_21d", 0), 3)
+    vol_premium = _nf(signals.get("vol_risk_premium", 0), 2)
+    conf_pct = _npct(regime_confidence)
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -69,24 +109,24 @@ li {{ margin: 4px 0; }}
 <h2>1. Market Regime</h2>
 <div class="card">
   <p>Regime: <span class="regime-badge regime-{regime}">{regime.upper().replace('_', ' ')}</span>
-     &nbsp; Confidence: {regime_confidence*100:.0f}%</p>
-  <p style="margin-top:8px">VIX: {signals.get('vix_current', 'N/A'):.1f} &nbsp;|&nbsp;
-     SPY Momentum (21d): {pct_fmt(signals.get('spy_momentum_21d'))} &nbsp;|&nbsp;
-     Yield Spread: {signals.get('yield_spread', 0):.2f} &nbsp;|&nbsp;
-     Breadth: {signals.get('breadth_positive', 0)*100:.0f}%</p>
+     &nbsp; Confidence: {conf_pct}</p>
+  <p style="margin-top:8px">VIX: {vix_current} &nbsp;|&nbsp;
+     SPY Momentum (21d): {spy_mom_21} &nbsp;|&nbsp;
+     Yield Spread: {yield_spread} &nbsp;|&nbsp;
+     Breadth: {breadth}</p>
 </div>
 
 <h2>2. Signals Summary</h2>
 <div class="card">
   <table>
     <tr><th>Signal</th><th>Value</th></tr>
-    <tr><td>VIX Current</td><td>{signals.get('vix_current', 'N/A'):.1f}</td></tr>
-    <tr><td>VIX 20-day MA</td><td>{signals.get('vix_ma20', 'N/A'):.1f}</td></tr>
-    <tr><td>SPY Momentum 63d</td><td>{pct_fmt(signals.get('spy_momentum_63d'))}</td></tr>
-    <tr><td>SPY Momentum 21d</td><td>{pct_fmt(signals.get('spy_momentum_21d'))}</td></tr>
-    <tr><td>Equity-Bond Correlation</td><td>{signals.get('equity_bond_corr_21d', 0):.3f}</td></tr>
-    <tr><td>Vol Risk Premium</td><td>{signals.get('vol_risk_premium', 0):.2f}</td></tr>
-    <tr><td>Market Breadth</td><td>{signals.get('breadth_positive', 0)*100:.0f}% positive</td></tr>
+    <tr><td>VIX Current</td><td>{vix_current}</td></tr>
+    <tr><td>VIX 20-day MA</td><td>{vix_ma20}</td></tr>
+    <tr><td>SPY Momentum 63d</td><td>{spy_mom_63}</td></tr>
+    <tr><td>SPY Momentum 21d</td><td>{spy_mom_21}</td></tr>
+    <tr><td>Equity-Bond Correlation</td><td>{eq_bond_corr}</td></tr>
+    <tr><td>Vol Risk Premium</td><td>{vol_premium}</td></tr>
+    <tr><td>Market Breadth</td><td>{breadth} positive</td></tr>
   </table>
 </div>
 
@@ -104,25 +144,19 @@ li {{ margin: 4px 0; }}
 <div class="card metric-grid">
   {_metric_card("Weekly Return", metrics.get('weekly_return', 0), True)}
   {_metric_card("Cumulative Return", metrics.get('cumulative_return', 0), True)}
-  {_metric_card("Portfolio Value", metrics.get('portfolio_value', INITIAL_CAPITAL), False, prefix="€")}
+  {_metric_card("Portfolio Value", metrics.get('portfolio_value', INITIAL_CAPITAL), False, prefix="EUR ")}
   {_metric_card("Sharpe Ratio", metrics.get('sharpe', 0), True, is_pct=False)}
   {_metric_card("Sortino Ratio", metrics.get('sortino', 0), True, is_pct=False)}
   {_metric_card("Max Drawdown", metrics.get('max_drawdown', 0), True)}
   {_metric_card("Annualized Vol", metrics.get('volatility', 0), False)}
-  {_metric_card("Transaction Cost", metrics.get('transaction_cost', 0), False, prefix="€")}
+  {_metric_card("Transaction Cost", metrics.get('transaction_cost', 0), False, prefix="EUR ")}
 </div>
 
 <h2>5. Benchmark Comparison</h2>
 <div class="card">
   <table>
     <tr><th>Strategy</th><th>Weekly Return</th><th>vs Agent</th></tr>
-    <tr><td>Agent Portfolio</td><td class="{_color_class(metrics.get('weekly_return', 0))}">{pct_fmt(metrics.get('weekly_return', 0))}</td><td>—</td></tr>
-    <tr><td>S&P 500 (SPY)</td><td>{pct_fmt(metrics.get('benchmark_spy', 0))}</td>
-        <td class="{_color_class((metrics.get('weekly_return', 0) or 0) - (metrics.get('benchmark_spy', 0) or 0))}">{pct_fmt((metrics.get('weekly_return', 0) or 0) - (metrics.get('benchmark_spy', 0) or 0))}</td></tr>
-    <tr><td>Equal Weight</td><td>{pct_fmt(metrics.get('benchmark_ew', 0))}</td>
-        <td class="{_color_class((metrics.get('weekly_return', 0) or 0) - (metrics.get('benchmark_ew', 0) or 0))}">{pct_fmt((metrics.get('weekly_return', 0) or 0) - (metrics.get('benchmark_ew', 0) or 0))}</td></tr>
-    <tr><td>Risk Parity</td><td>{pct_fmt(metrics.get('benchmark_rp', 0))}</td>
-        <td class="{_color_class((metrics.get('weekly_return', 0) or 0) - (metrics.get('benchmark_rp', 0) or 0))}">{pct_fmt((metrics.get('weekly_return', 0) or 0) - (metrics.get('benchmark_rp', 0) or 0))}</td></tr>
+    {_benchmark_rows(metrics)}
   </table>
 </div>
 
@@ -165,26 +199,22 @@ def save_report(week_id, html):
     """Save report to docs/ for GitHub Pages."""
     os.makedirs(HISTORY_PATH, exist_ok=True)
 
-    # Save weekly archive
     filepath = os.path.join(HISTORY_PATH, f"week-{week_id}.html")
     with open(filepath, "w") as f:
         f.write(html)
 
-    # Update index.html with latest report
     index_path = os.path.join(DOCS_PATH, "index.html")
     with open(index_path, "w") as f:
         f.write(html)
 
-    # Generate history index
     _update_history_index()
-
     logger.info(f"Report saved: {filepath}")
     return filepath
 
 
 def send_email(week_id, html):
     """Send weekly report via email."""
-    if not EMAIL_SENDER or not EMAIL_APP_PASSWORD:
+    if not EMAIL_SENDER or not EMAIL_APP_PASSWORD or not EMAIL_RECIPIENT:
         logger.warning("Email not configured — skipping email send")
         return False
 
@@ -217,39 +247,53 @@ def _macro_section(macro):
         return '<h2>Macro Data</h2><div class="card"><p>FRED data unavailable (no API key or fetch failed)</p></div>'
     rows = ""
     for key, data in macro.items():
-        rows += f'<tr><td>{data["name"]}</td><td>{data["latest"]:.2f}</td><td>{data.get("change", 0):+.3f}</td></tr>'
+        latest = _nf(data.get("latest"), 2)
+        change = _nf(data.get("change", 0), 3)
+        rows += f'<tr><td>{data.get("name", key)}</td><td>{latest}</td><td>{change}</td></tr>'
     return f'''<h2>Macro Data (FRED)</h2>
 <div class="card"><table><tr><th>Indicator</th><th>Latest</th><th>Change</th></tr>{rows}</table></div>'''
 
 
 def _allocation_rows(allocation, portfolio_value):
     rows = ""
-    for ticker, weight in sorted(allocation.items(), key=lambda x: -x[1]):
-        eur = portfolio_value * weight
-        rows += f'<tr><td>{ticker}</td><td>{weight*100:.1f}%</td><td>€{eur:,.0f}</td></tr>'
+    pv = _safe_float(portfolio_value, INITIAL_CAPITAL)
+    for ticker, weight in sorted(allocation.items(), key=lambda x: -_safe_float(x[1])):
+        w = _safe_float(weight)
+        eur = pv * w
+        rows += f'<tr><td>{ticker}</td><td>{w*100:.1f}%</td><td>EUR {eur:,.0f}</td></tr>'
+    return rows
+
+
+def _benchmark_rows(metrics):
+    port_ret = _safe_float(metrics.get("weekly_return"))
+    spy_ret = _safe_float(metrics.get("benchmark_spy"))
+    ew_ret = _safe_float(metrics.get("benchmark_ew"))
+    rp_ret = _safe_float(metrics.get("benchmark_rp"))
+
+    rows = f'<tr><td>Agent Portfolio</td><td class="{_color_class(port_ret)}">{pct_fmt(port_ret)}</td><td>—</td></tr>'
+    rows += f'<tr><td>S&P 500 (SPY)</td><td>{pct_fmt(spy_ret)}</td><td class="{_color_class(port_ret - spy_ret)}">{pct_fmt(port_ret - spy_ret)}</td></tr>'
+    rows += f'<tr><td>Equal Weight</td><td>{pct_fmt(ew_ret)}</td><td class="{_color_class(port_ret - ew_ret)}">{pct_fmt(port_ret - ew_ret)}</td></tr>'
+    rows += f'<tr><td>Risk Parity</td><td>{pct_fmt(rp_ret)}</td><td class="{_color_class(port_ret - rp_ret)}">{pct_fmt(port_ret - rp_ret)}</td></tr>'
     return rows
 
 
 def _metric_card(label, value, color_it, is_pct=True, prefix=""):
-    if value is None:
-        display = "N/A"
-        css_class = "neutral"
-    elif prefix:
-        display = f"{prefix}{value:,.2f}"
+    val = _safe_float(value)
+    if prefix:
+        display = f"{prefix}{val:,.2f}"
         css_class = ""
     elif is_pct:
-        display = pct_fmt(value)
-        css_class = _color_class(value) if color_it else ""
+        display = pct_fmt(val)
+        css_class = _color_class(val) if color_it else ""
     else:
-        display = f"{value:.2f}"
-        css_class = _color_class(value) if color_it else ""
+        display = f"{val:.2f}"
+        css_class = _color_class(val) if color_it else ""
     return f'<div class="metric"><div class="value {css_class}">{display}</div><div class="label">{label}</div></div>'
 
 
 def _color_class(value):
-    if value is None:
-        return "neutral"
-    return "positive" if value > 0 else "negative" if value < 0 else "neutral"
+    v = _safe_float(value)
+    return "positive" if v > 0 else "negative" if v < 0 else "neutral"
 
 
 def _list_section(items, empty_msg):
@@ -261,8 +305,8 @@ def _list_section(items, empty_msg):
 def _weights_rows(weights, confidence):
     rows = ""
     for signal in sorted(weights.keys()):
-        w = weights[signal]
-        c = confidence.get(signal, 0.5)
+        w = _safe_float(weights.get(signal))
+        c = _safe_float(confidence.get(signal, 0.5))
         rows += f'<tr><td>{signal}</td><td>{w*100:.1f}%</td><td>{c*100:.0f}%</td></tr>'
     return rows
 
@@ -287,11 +331,11 @@ def _equity_curve_section():
         return ""
 
     weeks = [p["week_id"] for p in all_perf]
-    cum_returns = [((p.get("cumulative_return") or 0) + 1) * INITIAL_CAPITAL for p in all_perf]
+    cum_returns = [(_safe_float(p.get("cumulative_return")) + 1) * INITIAL_CAPITAL for p in all_perf]
     spy_returns = []
     running_spy = INITIAL_CAPITAL
     for p in all_perf:
-        running_spy *= (1 + (p.get("benchmark_spy") or 0))
+        running_spy *= (1 + _safe_float(p.get("benchmark_spy")))
         spy_returns.append(running_spy)
 
     labels = json.dumps([f"W{w}" for w in weeks])
@@ -319,7 +363,7 @@ new Chart(document.getElementById('equityChart'), {{
     plugins: {{ legend: {{ labels: {{ color: '#c9d1d9' }} }} }},
     scales: {{
       x: {{ ticks: {{ color: '#8b949e' }}, grid: {{ color: '#30363d' }} }},
-      y: {{ ticks: {{ color: '#8b949e', callback: v => '€' + v.toLocaleString() }}, grid: {{ color: '#30363d' }} }}
+      y: {{ ticks: {{ color: '#8b949e', callback: v => 'EUR ' + v.toLocaleString() }}, grid: {{ color: '#30363d' }} }}
     }}
   }}
 }});
