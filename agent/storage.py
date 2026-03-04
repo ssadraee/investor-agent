@@ -20,7 +20,8 @@ def init_db():
     c = conn.cursor()
     c.executescript("""
         CREATE TABLE IF NOT EXISTS weekly_state (
-            week_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            week_id INTEGER NOT NULL,
             week_start TEXT NOT NULL,
             phase TEXT NOT NULL,
             data JSON NOT NULL,
