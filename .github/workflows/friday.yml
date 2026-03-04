@@ -1,13 +1,7 @@
-bash
-
-cat /home/claude/investor-agent/.github/workflows/friday.yml
-Sortie
-
 name: Friday — Evaluate
 
 on:
   schedule:
-    # Friday 21:00 UTC = 5:00 PM ET (after market close)
     - cron: '0 21 * * 5'
   workflow_dispatch:
 
