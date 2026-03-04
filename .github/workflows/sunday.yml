@@ -1,13 +1,7 @@
-bash
-
-cat /home/claude/investor-agent/.github/workflows/sunday.yml
-Sortie
-
 name: Sunday — Learn & Report
 
 on:
   schedule:
-    # Sunday 12:00 UTC = 8:00 AM ET
     - cron: '0 12 * * 0'
   workflow_dispatch:
 
