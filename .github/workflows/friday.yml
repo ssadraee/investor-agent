@@ -1,0 +1,44 @@
+bash
+
+cat /home/claude/investor-agent/.github/workflows/friday.yml
+Sortie
+
+name: Friday — Evaluate
+
+on:
+  schedule:
+    # Friday 21:00 UTC = 5:00 PM ET (after market close)
+    - cron: '0 21 * * 5'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run evaluation
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        run: python -m agent.main --phase evaluate
+
+      - name: Commit updated data
+        run: |
+          git config --local user.email "agent@investor-bot.local"
+          git config --local user.name "Investor Agent"
+          git add data/ || true
+          git diff --staged --quiet || git commit -m "Week evaluation — $(date -u +%Y-%m-%d)"
+          git push
