@@ -1,0 +1,47 @@
+bash
+
+cat /home/claude/investor-agent/.github/workflows/sunday.yml
+Sortie
+
+name: Sunday — Learn & Report
+
+on:
+  schedule:
+    # Sunday 12:00 UTC = 8:00 AM ET
+    - cron: '0 12 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  learn-and-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run learn and report
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          EMAIL_SENDER: ${{ secrets.EMAIL_SENDER }}
+          EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
+          EMAIL_RECIPIENT: ${{ secrets.EMAIL_RECIPIENT }}
+        run: python -m agent.main --phase learn_and_report
+
+      - name: Commit updated data and report
+        run: |
+          git config --local user.email "agent@investor-bot.local"
+          git config --local user.name "Investor Agent"
+          git add data/ docs/ || true
+          git diff --staged --quiet || git commit -m "Week report & learning — $(date -u +%Y-%m-%d)"
+          git push
