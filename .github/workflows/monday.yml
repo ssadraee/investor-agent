@@ -1,0 +1,44 @@
+bash
+
+cat /home/claude/investor-agent/.github/workflows/monday.yml
+Sortie
+
+name: Monday — Scan & Allocate
+
+on:
+  schedule:
+    # Monday 10:30 UTC = 6:30 AM ET (after pre-market data available)
+    - cron: '30 10 * * 1'
+  workflow_dispatch:  # Manual trigger
+
+permissions:
+  contents: write
+
+jobs:
+  scan-and-allocate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run scan and allocate
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        run: python -m agent.main --phase scan_and_allocate
+
+      - name: Commit updated data
+        run: |
+          git config --local user.email "agent@investor-bot.local"
+          git config --local user.name "Investor Agent"
+          git add data/ docs/ || true
+          git diff --staged --quiet || git commit -m "Week scan & allocation — $(date -u +%Y-%m-%d)"
+          git push
