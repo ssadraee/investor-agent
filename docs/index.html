@@ -37,7 +37,7 @@ li { margin: 4px 0; }
 </head>
 <body>
 <h1>Week 3 Report</h1>
-<p class="subtitle">Generated 2026-03-04 21:53 UTC — Autonomous Investor Agent</p>
+<p class="subtitle">Generated 2026-03-08 13:52 UTC — Autonomous Investor Agent</p>
 
 <h2>1. Market Regime</h2>
 <div class="card">
@@ -101,14 +101,14 @@ li { margin: 4px 0; }
 
 <h2>7. Model Updates</h2>
 <div class="card">
-  <ul><li>Weights held (need 5 more weeks)</li><li>Outperformed SPY by 2.48%</li><li>Risk model overestimated volatility — can take more risk</li></ul>
+  <ul><li>Weights held (need 4 more weeks)</li><li>Outperformed SPY by 2.48%</li><li>Risk model overestimated volatility — can take more risk</li></ul>
 </div>
 
 <h2>8. Signal Weights</h2>
 <div class="card">
   <table>
     <tr><th>Signal</th><th>Weight</th><th>Confidence</th></tr>
-    <tr><td>cross_asset_momentum</td><td>16.7%</td><td>44%</td></tr><tr><td>macro_trend</td><td>16.7%</td><td>44%</td></tr><tr><td>mean_reversion</td><td>16.7%</td><td>44%</td></tr><tr><td>momentum</td><td>16.7%</td><td>44%</td></tr><tr><td>volatility_regime</td><td>16.7%</td><td>44%</td></tr><tr><td>yield_curve</td><td>16.7%</td><td>52%</td></tr>
+    <tr><td>cross_asset_momentum</td><td>16.7%</td><td>42%</td></tr><tr><td>macro_trend</td><td>16.7%</td><td>42%</td></tr><tr><td>mean_reversion</td><td>16.7%</td><td>42%</td></tr><tr><td>momentum</td><td>16.7%</td><td>42%</td></tr><tr><td>volatility_regime</td><td>16.7%</td><td>42%</td></tr><tr><td>yield_curve</td><td>16.7%</td><td>49%</td></tr>
   </table>
 </div>
 
@@ -127,10 +127,10 @@ li { margin: 4px 0; }
 new Chart(document.getElementById('equityChart'), {
   type: 'line',
   data: {
-    labels: ["W1", "W2", "W3"],
+    labels: ["W1", "W2", "W3", "W3"],
     datasets: [
-      { label: 'Agent', data: [10106.47, 10224.18, 10343.26], borderColor: '#58a6ff', backgroundColor: 'transparent', tension: 0.3 },
-      { label: 'SPY Benchmark', data: [9868.93, 9739.58, 9611.92], borderColor: '#8b949e', backgroundColor: 'transparent', borderDash: [5,5], tension: 0.3 }
+      { label: 'Agent', data: [10106.47, 10224.18, 10343.26, 10300.25], borderColor: '#58a6ff', backgroundColor: 'transparent', tension: 0.3 },
+      { label: 'SPY Benchmark', data: [9868.93, 9739.58, 9611.92, 9598.31], borderColor: '#8b949e', backgroundColor: 'transparent', borderDash: [5,5], tension: 0.3 }
     ]
   },
   options: {
