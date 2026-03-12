@@ -9,9 +9,11 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 
+import math
+
 from agent.config import (
     EMAIL_RECIPIENT, EMAIL_SENDER, EMAIL_APP_PASSWORD,
-    DOCS_PATH, HISTORY_PATH, INITIAL_CAPITAL
+    DOCS_PATH, HISTORY_PATH, INITIAL_CAPITAL, UNIVERSE
 )
 from agent import storage
 from agent.utils import pct_fmt
@@ -195,6 +197,255 @@ li {{ margin: 4px 0; }}
     return html
 
 
+def _base_css():
+    """Shared CSS for all email reports."""
+    return """:root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9;
+  --accent: #58a6ff; --green: #3fb950; --red: #f85149; --yellow: #d29922; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg); color: var(--text); padding: 20px; max-width: 900px; margin: 0 auto; }
+h1 { color: var(--accent); margin-bottom: 8px; font-size: 1.5em; }
+h2 { color: var(--accent); margin: 24px 0 12px; font-size: 1.15em; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+.subtitle { color: #8b949e; margin-bottom: 20px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+  padding: 16px; margin-bottom: 16px; }
+.positive { color: var(--green); }
+.negative { color: var(--red); }
+.neutral { color: var(--yellow); }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+th { color: var(--accent); font-weight: 600; }
+.regime-badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-weight: 600; font-size: 0.9em; }
+.regime-risk_on { background: #1a3a1a; color: var(--green); }
+.regime-risk_off { background: #3a1a1a; color: var(--red); }
+.regime-transition { background: #3a3a1a; color: var(--yellow); }
+.regime-crisis { background: #3a0a0a; color: #ff6b6b; }
+.metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.metric { text-align: center; padding: 12px; }
+.metric .value { font-size: 1.5em; font-weight: 700; }
+.metric .label { font-size: 0.85em; color: #8b949e; margin-top: 4px; }
+ul { margin: 8px 0 8px 20px; }
+li { margin: 4px 0; }
+.disclaimer { margin-top: 30px; padding: 12px; font-size: 0.8em; color: #8b949e; border-top: 1px solid var(--border); }"""
+
+
+_REGIME_LABELS = {
+    "risk_on": "Confident Market",
+    "risk_off": "Cautious Market",
+    "transition": "Mixed Signals",
+    "crisis": "Emergency Mode",
+}
+
+
+def generate_scan_report(week_id, market_state, regime, regime_confidence,
+                         allocation, current_prices):
+    """Generate a simple HTML email report for the Monday Scan & Allocate phase."""
+    signals = market_state.get("signals", {})
+    data_quality = market_state.get("data_quality", {})
+    regime_label = _REGIME_LABELS.get(regime, regime)
+    conf_pct = _npct(regime_confidence)
+
+    # Compute portfolio value from historical performance
+    all_perf = storage.get_all_performance()
+    if all_perf:
+        last = all_perf[-1]
+        portfolio_value = _safe_float(last.get("portfolio_value"), INITIAL_CAPITAL)
+    else:
+        portfolio_value = INITIAL_CAPITAL
+
+    # VIX interpretation
+    vix = _safe_float(signals.get("vix_current"), 20)
+    if vix < 16:
+        vix_desc = "low (calm market)"
+    elif vix < 25:
+        vix_desc = "moderate"
+    elif vix < 35:
+        vix_desc = "elevated (nervous market)"
+    else:
+        vix_desc = "very high (fearful market)"
+
+    # Momentum interpretation
+    spy_mom = _safe_float(signals.get("spy_momentum_21d"), 0)
+    if spy_mom > 0.02:
+        mom_desc = "upward"
+    elif spy_mom < -0.02:
+        mom_desc = "downward"
+    else:
+        mom_desc = "sideways"
+
+    # Allocation rows with shares
+    alloc_rows = ""
+    for ticker, weight in sorted(allocation.items(), key=lambda x: -_safe_float(x[1])):
+        w = _safe_float(weight)
+        eur_value = portfolio_value * w
+        name = UNIVERSE.get(ticker, ticker)
+        price = _safe_float(current_prices.get(ticker), 0)
+        if ticker == "CASH" or price == 0:
+            shares_str = "—"
+            price_str = "—"
+        else:
+            shares = math.floor(eur_value / price)
+            shares_str = str(shares)
+            price_str = f"${price:,.2f}"
+        alloc_rows += (f'<tr><td>{ticker}</td><td>{name}</td>'
+                       f'<td>{w*100:.1f}%</td><td>EUR {eur_value:,.0f}</td>'
+                       f'<td>{shares_str}</td><td>{price_str}</td></tr>')
+
+    tickers_scanned = data_quality.get("tickers_fetched", len(allocation))
+    days_data = data_quality.get("days_of_data", "N/A")
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Week {week_id} — Scan & Allocation</title>
+<style>{_base_css()}</style>
+</head>
+<body>
+<h1>Week {week_id} — Scan & Allocation Report</h1>
+<p class="subtitle">Generated {datetime.now().strftime('%Y-%m-%d %H:%M UTC')} — Autonomous Investor Agent</p>
+
+<h2>Market Overview</h2>
+<div class="card">
+  <p>The system assessed the current market and determined it is in
+     <span class="regime-badge regime-{regime}">{regime_label}</span> mode
+     (confidence: {conf_pct}).</p>
+  <p style="margin-top:8px">Fear index (VIX): <strong>{_nf(vix, 1)}</strong> — {vix_desc}.</p>
+  <p>Market trend over the past 21 days: <strong>{mom_desc}</strong>.</p>
+</div>
+
+<h2>Scan Results</h2>
+<div class="card">
+  <p>The system scanned <strong>{tickers_scanned}</strong> investment funds using
+     <strong>{days_data}</strong> days of price history.</p>
+  <p>It looked at market fear levels, price trends, bond vs stock behavior,
+     and sector health to decide how to invest.</p>
+</div>
+
+<h2>Allocation Summary</h2>
+<div class="card">
+  <p style="margin-bottom:12px">Based on the "{regime_label}" assessment, the system
+     allocated <strong>EUR {portfolio_value:,.0f}</strong> as follows:</p>
+  <table>
+    <tr><th>Fund</th><th>Name</th><th>Weight</th><th>EUR Value</th><th>Shares</th><th>Price</th></tr>
+    {alloc_rows}
+  </table>
+  <p style="margin-top:12px; font-size:0.85em; color:#8b949e">
+    Shares are approximate (rounded down). Actual execution may vary slightly.</p>
+</div>
+
+<div class="disclaimer">
+  <strong>DISCLAIMER:</strong> This is a virtual portfolio simulation for educational purposes only.
+  No real money is at risk. Not financial advice.
+</div>
+</body>
+</html>"""
+
+    return html
+
+
+def generate_evaluate_report(week_id, metrics):
+    """Generate a simple HTML email report for the Friday Evaluate phase."""
+    weekly_ret = _safe_float(metrics.get("weekly_return"))
+    cum_ret = _safe_float(metrics.get("cumulative_return"))
+    port_value = _safe_float(metrics.get("portfolio_value"), INITIAL_CAPITAL)
+    sharpe = _safe_float(metrics.get("sharpe"))
+    sortino = _safe_float(metrics.get("sortino"))
+    max_dd = _safe_float(metrics.get("max_drawdown"))
+    vol = _safe_float(metrics.get("volatility"))
+    spy_ret = _safe_float(metrics.get("benchmark_spy"))
+    ew_ret = _safe_float(metrics.get("benchmark_ew"))
+    rp_ret = _safe_float(metrics.get("benchmark_rp"))
+
+    # Plain-language findings
+    findings = []
+
+    # Weekly return
+    if weekly_ret > 0:
+        findings.append(f"The portfolio gained {pct_fmt(weekly_ret)} this week.")
+    elif weekly_ret < 0:
+        findings.append(f"The portfolio lost {pct_fmt(weekly_ret)} this week.")
+    else:
+        findings.append("The portfolio was flat this week (no gain or loss).")
+
+    # SPY comparison
+    diff = weekly_ret - spy_ret
+    if diff > 0.001:
+        findings.append(f"We outperformed the S&P 500 by {pct_fmt(diff)}.")
+    elif diff < -0.001:
+        findings.append(f"We underperformed the S&P 500 by {pct_fmt(abs(diff))}.")
+    else:
+        findings.append("Performance was roughly in line with the S&P 500.")
+
+    # Sharpe interpretation
+    if sharpe > 1.5:
+        findings.append(f"Risk-adjusted return score (Sharpe ratio) is strong at {sharpe:.2f}.")
+    elif sharpe > 0.5:
+        findings.append(f"Risk-adjusted return score (Sharpe ratio) is acceptable at {sharpe:.2f}.")
+    elif sharpe > 0:
+        findings.append(f"Risk-adjusted return score (Sharpe ratio) is low at {sharpe:.2f}.")
+    else:
+        findings.append(f"Risk-adjusted return score (Sharpe ratio) is negative at {sharpe:.2f} — returns are not compensating for risk taken.")
+
+    # Drawdown
+    if max_dd < -0.10:
+        findings.append(f"Maximum drawdown has reached {pct_fmt(max_dd)} — this is a notable decline from peak value.")
+    elif max_dd < -0.05:
+        findings.append(f"Maximum drawdown is {pct_fmt(max_dd)} — moderate decline from peak.")
+
+    findings_html = "<ul>" + "".join(f"<li>{f}</li>" for f in findings) + "</ul>"
+
+    # Benchmark rows
+    bench_rows = f"""
+    <tr><td>Our Portfolio</td><td class="{_color_class(weekly_ret)}">{pct_fmt(weekly_ret)}</td></tr>
+    <tr><td>S&P 500 (SPY)</td><td class="{_color_class(spy_ret)}">{pct_fmt(spy_ret)}</td></tr>
+    <tr><td>Equal Weight</td><td class="{_color_class(ew_ret)}">{pct_fmt(ew_ret)}</td></tr>
+    <tr><td>Risk Parity</td><td class="{_color_class(rp_ret)}">{pct_fmt(rp_ret)}</td></tr>"""
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Week {week_id} — Evaluation</title>
+<style>{_base_css()}</style>
+</head>
+<body>
+<h1>Week {week_id} — Evaluation Report</h1>
+<p class="subtitle">Generated {datetime.now().strftime('%Y-%m-%d %H:%M UTC')} — Autonomous Investor Agent</p>
+
+<h2>Performance Summary</h2>
+<div class="card metric-grid">
+  {_metric_card("Weekly Return", weekly_ret, True)}
+  {_metric_card("Total Return", cum_ret, True)}
+  {_metric_card("Portfolio Value", port_value, False, prefix="EUR ")}
+</div>
+
+<h2>Key Findings</h2>
+<div class="card">
+  {findings_html}
+</div>
+
+<h2>Benchmark Comparison</h2>
+<div class="card">
+  <p style="margin-bottom:8px">How our portfolio performed compared to common strategies this week:</p>
+  <table>
+    <tr><th>Strategy</th><th>Weekly Return</th></tr>
+    {bench_rows}
+  </table>
+</div>
+
+<div class="disclaimer">
+  <strong>DISCLAIMER:</strong> This is a virtual portfolio simulation for educational purposes only.
+  No real money is at risk. Not financial advice.
+</div>
+</body>
+</html>"""
+
+    return html
+
+
 def save_report(week_id, html):
     """Save report to docs/ for GitHub Pages."""
     os.makedirs(HISTORY_PATH, exist_ok=True)
@@ -212,15 +463,18 @@ def save_report(week_id, html):
     return filepath
 
 
-def send_email(week_id, html):
-    """Send weekly report via email."""
+def send_email(week_id, html, subject=None):
+    """Send report via email. Subject defaults to the weekly report title."""
     if not EMAIL_SENDER or not EMAIL_APP_PASSWORD or not EMAIL_RECIPIENT:
         logger.warning("Email not configured — skipping email send")
         return False
 
+    if subject is None:
+        subject = f"Investor Agent — Week {week_id} Report"
+
     try:
         msg = MIMEMultipart("alternative")
-        msg["Subject"] = f"Investor Agent — Week {week_id} Report"
+        msg["Subject"] = subject
         msg["From"] = EMAIL_SENDER
         msg["To"] = EMAIL_RECIPIENT
 

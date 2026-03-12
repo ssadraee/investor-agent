@@ -27,6 +27,9 @@ jobs:
       - name: Run scan and allocate
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          EMAIL_SENDER: ${{ secrets.EMAIL_SENDER }}
+          EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
+          EMAIL_RECIPIENT: ${{ secrets.EMAIL_RECIPIENT }}
         run: python -m agent.main --phase scan_and_allocate
 
       - name: Commit updated data

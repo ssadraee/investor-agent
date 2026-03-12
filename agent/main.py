@@ -17,7 +17,10 @@ from agent.regime import classify_regime
 from agent.allocator import build_allocation
 from agent.evaluator import evaluate_week
 from agent.learner import learn_and_update, get_current_weights
-from agent.reporter import generate_report, save_report, send_email
+from agent.reporter import (
+    generate_report, generate_scan_report, generate_evaluate_report,
+    save_report, send_email
+)
 from agent.config import UNIVERSE
 
 logging.basicConfig(
@@ -91,6 +94,25 @@ def phase_scan_and_allocate():
     for t, w in sorted(allocation.items(), key=lambda x: -x[1]):
         logger.info(f"  {t}: {w*100:.1f}%")
 
+    # 7. Send email report
+    current_prices = {}
+    if not prices.empty:
+        for t in allocation:
+            if t != "CASH" and t in prices.columns:
+                current_prices[t] = float(prices[t].iloc[-1])
+
+    scan_html = generate_scan_report(
+        week_id, market_state, regime, regime_conf, allocation, current_prices
+    )
+    email_sent = send_email(
+        week_id, scan_html,
+        subject=f"Investor Agent — Week {week_id} Scan & Allocation"
+    )
+    if email_sent:
+        logger.info("Scan & allocation email report sent successfully")
+    else:
+        logger.warning("Scan & allocation email not sent (check configuration)")
+
     return week_id
 
 
@@ -116,6 +138,17 @@ def phase_evaluate():
     logger.info(f"  SPY:    {metrics.get('benchmark_spy', 0)*100:+.2f}%")
     logger.info(f"  Sharpe: {metrics.get('sharpe', 0):.2f}")
     logger.info(f"  Value:  €{metrics.get('portfolio_value', 10000):,.2f}")
+
+    # Send email report
+    eval_html = generate_evaluate_report(week_id, metrics)
+    email_sent = send_email(
+        week_id, eval_html,
+        subject=f"Investor Agent — Week {week_id} Evaluation"
+    )
+    if email_sent:
+        logger.info("Evaluation email report sent successfully")
+    else:
+        logger.warning("Evaluation email not sent (check configuration)")
 
     return metrics
 
