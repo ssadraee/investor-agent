@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Week 10 Report — Autonomous Investor Agent</title>
+<title>Week 8 Report — Autonomous Investor Agent</title>
 <style>
 :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9;
   --accent: #58a6ff; --green: #3fb950; --red: #f85149; --yellow: #d29922; }
@@ -36,13 +36,13 @@ li { margin: 4px 0; }
 </style>
 </head>
 <body>
-<h1>Week 10 Report</h1>
-<p class="subtitle">Generated 2026-03-13 12:15 UTC — Autonomous Investor Agent</p>
+<h1>Week 8 Report</h1>
+<p class="subtitle">Generated 2026-03-13 12:07 UTC — Autonomous Investor Agent</p>
 
 <h2>1. Market Regime</h2>
 <div class="card">
   <p>Regime: <span class="regime-badge regime-transition">TRANSITION</span>
-     &nbsp; Confidence: 12%</p>
+     &nbsp; Confidence: 16%</p>
   <p style="margin-top:8px">VIX: N/A &nbsp;|&nbsp;
      SPY Momentum (21d): N/A &nbsp;|&nbsp;
      Yield Spread: 0.00 &nbsp;|&nbsp;
@@ -101,14 +101,14 @@ li { margin: 4px 0; }
 
 <h2>7. Model Updates</h2>
 <div class="card">
-  <ul><li>momentum: correct (score=0.000), confidence up</li><li>mean_reversion: correct (score=0.000), confidence up</li><li>macro_trend: correct (score=0.000), confidence up</li><li>yield_curve: correct (score=0.000), confidence up</li><li>global_breadth: correct (score=-0.800), confidence up</li><li>leading_indicators: correct (score=0.000), confidence up</li><li>Weights updated after 10 weeks of data</li></ul>
+  <ul><li>momentum: correct (score=0.000), confidence up</li><li>mean_reversion: correct (score=0.000), confidence up</li><li>macro_trend: correct (score=0.000), confidence up</li><li>yield_curve: correct (score=0.000), confidence up</li><li>global_breadth: correct (score=-0.800), confidence up</li><li>leading_indicators: correct (score=0.000), confidence up</li><li>Weights updated after 8 weeks of data</li></ul>
 </div>
 
 <h2>8. Signal Weights</h2>
 <div class="card">
   <table>
     <tr><th>Signal</th><th>Weight</th><th>Confidence</th></tr>
-    <tr><td>credit_conditions</td><td>5.7%</td><td>44%</td></tr><tr><td>cross_asset_momentum</td><td>10.8%</td><td>44%</td></tr><tr><td>fx_stress</td><td>5.7%</td><td>44%</td></tr><tr><td>geopolitical_risk</td><td>5.7%</td><td>44%</td></tr><tr><td>global_breadth</td><td>5.9%</td><td>59%</td></tr><tr><td>global_monetary</td><td>5.7%</td><td>44%</td></tr><tr><td>leading_indicators</td><td>5.9%</td><td>59%</td></tr><tr><td>macro_trend</td><td>11.0%</td><td>59%</td></tr><tr><td>mean_reversion</td><td>11.0%</td><td>59%</td></tr><tr><td>momentum</td><td>11.0%</td><td>59%</td></tr><tr><td>volatility_regime</td><td>10.8%</td><td>44%</td></tr><tr><td>yield_curve</td><td>11.0%</td><td>58%</td></tr>
+    <tr><td>credit_conditions</td><td>5.6%</td><td>47%</td></tr><tr><td>cross_asset_momentum</td><td>11.0%</td><td>47%</td></tr><tr><td>fx_stress</td><td>5.6%</td><td>47%</td></tr><tr><td>geopolitical_risk</td><td>5.6%</td><td>47%</td></tr><tr><td>global_breadth</td><td>5.7%</td><td>55%</td></tr><tr><td>global_monetary</td><td>5.6%</td><td>47%</td></tr><tr><td>leading_indicators</td><td>5.7%</td><td>55%</td></tr><tr><td>macro_trend</td><td>11.0%</td><td>54%</td></tr><tr><td>mean_reversion</td><td>11.0%</td><td>54%</td></tr><tr><td>momentum</td><td>11.0%</td><td>54%</td></tr><tr><td>volatility_regime</td><td>11.0%</td><td>47%</td></tr><tr><td>yield_curve</td><td>11.0%</td><td>54%</td></tr>
   </table>
 </div>
 
@@ -127,10 +127,10 @@ li { margin: 4px 0; }
 new Chart(document.getElementById('equityChart'), {
   type: 'line',
   data: {
-    labels: ["W1", "W2", "W3", "W3", "W5", "W6", "W7", "W8", "W9", "W10"],
+    labels: ["W1", "W2", "W3", "W3", "W5", "W6", "W7", "W8"],
     datasets: [
-      { label: 'Agent', data: [10106.47, 10224.18, 10343.26, 10300.25, 10608.83, 10000.0, 10000.0, 10000.0, 10000.0, 10000.0], borderColor: '#58a6ff', backgroundColor: 'transparent', tension: 0.3 },
-      { label: 'SPY Benchmark', data: [9868.93, 9739.58, 9611.92, 9598.31, 9458.71, 9458.71, 9458.71, 9458.71, 9458.71, 9458.71], borderColor: '#8b949e', backgroundColor: 'transparent', borderDash: [5,5], tension: 0.3 }
+      { label: 'Agent', data: [10106.47, 10224.18, 10343.26, 10300.25, 10608.83, 10000.0, 10000.0, 10000.0], borderColor: '#58a6ff', backgroundColor: 'transparent', tension: 0.3 },
+      { label: 'SPY Benchmark', data: [9868.93, 9739.58, 9611.92, 9598.31, 9458.71, 9458.71, 9458.71, 9458.71], borderColor: '#8b949e', backgroundColor: 'transparent', borderDash: [5,5], tension: 0.3 }
     ]
   },
   options: {

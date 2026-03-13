@@ -353,7 +353,9 @@ def compute_commodity_signals(global_prices):
         return None
 
     # Oil: trend, volatility, z-score spike detector
-    oil = _series("CL=F") or _series("BZ=F")
+    oil = _series("CL=F")
+    if oil is None:
+        oil = _series("BZ=F")
     if oil is not None and len(oil) >= 21:
         oil_rets = oil.pct_change().dropna()
         signals["oil_trend_21d"] = float(oil.iloc[-1] / oil.iloc[-21] - 1)

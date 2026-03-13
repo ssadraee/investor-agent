@@ -20,7 +20,13 @@ def get_current_weights():
     """Load latest signal weights or return defaults."""
     saved = storage.get_latest_signal_weights()
     if saved:
-        return saved["weights"], saved["confidence"]
+        weights = saved["weights"]
+        confidence = saved["confidence"]
+        # Back-fill any signals added since weights were last persisted
+        for s in SIGNALS:
+            weights.setdefault(s, DEFAULT_WEIGHTS[s])
+            confidence.setdefault(s, DEFAULT_CONFIDENCE[s])
+        return weights, confidence
     return DEFAULT_WEIGHTS.copy(), DEFAULT_CONFIDENCE.copy()
 
 

@@ -5,6 +5,7 @@ import os
 import json
 import smtplib
 import logging
+import requests
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
@@ -13,6 +14,7 @@ import math
 
 from agent.config import (
     EMAIL_RECIPIENT, EMAIL_SENDER, EMAIL_APP_PASSWORD,
+    TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID,
     DOCS_PATH, HISTORY_PATH, INITIAL_CAPITAL, UNIVERSE
 )
 from agent import storage
@@ -492,6 +494,110 @@ def send_email(week_id, html, subject=None):
     except Exception as e:
         logger.error(f"Email send failed: {e}")
         return False
+
+
+def send_telegram(text):
+    """Send an HTML-formatted message to a Telegram chat via Bot API."""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        logger.warning("Telegram not configured — skipping Telegram notification")
+        return False
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        payload = {
+            "chat_id": TELEGRAM_CHAT_ID,
+            "text": text,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": True,
+        }
+        resp = requests.post(url, json=payload, timeout=15)
+        resp.raise_for_status()
+        logger.info("Telegram notification sent")
+        return True
+    except Exception as e:
+        logger.error(f"Telegram send failed: {e}")
+        return False
+
+
+def notify_telegram_scan(week_id, regime, regime_conf, allocation):
+    """Send a Telegram summary for the Monday scan & allocation phase."""
+    regime_label = _REGIME_LABELS.get(regime, regime)
+    conf_pct = int(_safe_float(regime_conf) * 100)
+
+    all_perf = storage.get_all_performance()
+    portfolio_value = _safe_float(all_perf[-1].get("portfolio_value"), INITIAL_CAPITAL) if all_perf else INITIAL_CAPITAL
+
+    top_alloc = sorted(allocation.items(), key=lambda x: -_safe_float(x[1]))[:5]
+    alloc_lines = ""
+    for ticker, weight in top_alloc:
+        w = _safe_float(weight)
+        name = UNIVERSE.get(ticker, ticker)
+        eur = portfolio_value * w
+        alloc_lines += f"  {ticker} ({name}): <b>{w*100:.1f}%</b> — EUR {eur:,.0f}\n"
+
+    text = (
+        f"<b>Week {week_id} — Scan &amp; Allocation</b>\n\n"
+        f"Regime: <b>{regime_label}</b> ({conf_pct}% confidence)\n\n"
+        f"<b>Top Allocations</b>\n{alloc_lines}\n"
+        f"Portfolio value: EUR {portfolio_value:,.0f}"
+    )
+    return send_telegram(text)
+
+
+def notify_telegram_eval(week_id, metrics):
+    """Send a Telegram summary for the Friday evaluation phase."""
+    weekly_ret = _safe_float(metrics.get("weekly_return"))
+    cum_ret = _safe_float(metrics.get("cumulative_return"))
+    port_value = _safe_float(metrics.get("portfolio_value"), INITIAL_CAPITAL)
+    sharpe = _safe_float(metrics.get("sharpe"))
+    spy_ret = _safe_float(metrics.get("benchmark_spy"))
+    diff = weekly_ret - spy_ret
+
+    sign = "+" if weekly_ret >= 0 else ""
+    spy_sign = "+" if diff >= 0 else ""
+
+    text = (
+        f"<b>Week {week_id} — Evaluation</b>\n\n"
+        f"Weekly return: <b>{sign}{weekly_ret*100:.2f}%</b>\n"
+        f"vs S&amp;P 500: <b>{spy_sign}{diff*100:.2f}%</b>\n"
+        f"Cumulative return: <b>{cum_ret*100:.2f}%</b>\n"
+        f"Portfolio value: <b>EUR {port_value:,.0f}</b>\n"
+        f"Sharpe ratio: <b>{sharpe:.2f}</b>"
+    )
+    return send_telegram(text)
+
+
+def notify_telegram_report(week_id, regime, regime_conf, metrics, learning_result):
+    """Send a Telegram summary for the Sunday full report phase."""
+    regime_label = _REGIME_LABELS.get(regime, regime)
+    conf_pct = int(_safe_float(regime_conf) * 100)
+
+    weekly_ret = _safe_float(metrics.get("weekly_return"))
+    cum_ret = _safe_float(metrics.get("cumulative_return"))
+    port_value = _safe_float(metrics.get("portfolio_value"), INITIAL_CAPITAL)
+    sharpe = _safe_float(metrics.get("sharpe"))
+    max_dd = _safe_float(metrics.get("max_drawdown"))
+    spy_ret = _safe_float(metrics.get("benchmark_spy"))
+    diff = weekly_ret - spy_ret
+
+    sign = "+" if weekly_ret >= 0 else ""
+    spy_sign = "+" if diff >= 0 else ""
+
+    updates = learning_result.get("improvements", [])
+    updates_text = ""
+    if updates:
+        updates_text = "\n<b>Model Updates</b>\n" + "".join(f"  • {u}\n" for u in updates[:3])
+
+    text = (
+        f"<b>Week {week_id} — Full Report</b>\n\n"
+        f"Regime: <b>{regime_label}</b> ({conf_pct}% confidence)\n\n"
+        f"<b>Performance</b>\n"
+        f"  Weekly: <b>{sign}{weekly_ret*100:.2f}%</b> ({spy_sign}{diff*100:.2f}% vs SPY)\n"
+        f"  Cumulative: <b>{cum_ret*100:.2f}%</b>\n"
+        f"  Portfolio value: <b>EUR {port_value:,.0f}</b>\n"
+        f"  Sharpe: <b>{sharpe:.2f}</b>  |  Max drawdown: <b>{max_dd*100:.2f}%</b>"
+        f"{updates_text}"
+    )
+    return send_telegram(text)
 
 
 # === HELPER FUNCTIONS ===

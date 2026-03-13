@@ -245,6 +245,10 @@ EMAIL_SENDER = os.environ.get("EMAIL_SENDER", "")
 EMAIL_APP_PASSWORD = os.environ.get("EMAIL_APP_PASSWORD", "")
 FRED_API_KEY = os.environ.get("FRED_API_KEY", "")
 
+# === TELEGRAM ===
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID   = os.environ.get("TELEGRAM_CHAT_ID", "")
+
 # === OPTIONAL EXTERNAL SOURCE API KEYS ===
 # These keys are not required; the corresponding fetchers return {} when absent.
 # Add them as GitHub Secrets and they will be injected automatically.
