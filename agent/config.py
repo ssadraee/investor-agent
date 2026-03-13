@@ -11,30 +11,30 @@ TRANSACTION_COST_BPS = 10   # 0.10% conservative estimate
 # === INVESTMENT UNIVERSE ===
 # Liquid ETFs spanning asset classes, sectors, geographies
 UNIVERSE = {
-    # US Broad Market
-    "SPY": "S&P 500",
-    "QQQ": "Nasdaq 100",
-    "IWM": "Russell 2000",
-    # International
-    "EFA": "EAFE Developed Markets",
-    "VWO": "Emerging Markets",
-    # Sectors
-    "XLK": "Technology",
-    "XLF": "Financials",
-    "XLE": "Energy",
-    "XLV": "Healthcare",
-    "XLI": "Industrials",
-    "XLP": "Consumer Staples",
-    "XLU": "Utilities",
-    # Fixed Income
-    "TLT": "20+ Year Treasury",
-    "IEF": "7-10 Year Treasury",
-    "AGG": "US Aggregate Bond",
-    "LQD": "Investment Grade Corporate",
-    # Alternatives
-    "GLD": "Gold",
-    "VNQ": "US REITs",
-    "DBC": "Commodities Broad",
+    # US Broad Market (UCITS)
+    "CSPX": "S&P 500",
+    "EQQQ": "Nasdaq 100",
+    "IEUS": "Russell 2000",
+    # International (UCITS)
+    "IEFA": "EAFE Developed Markets",
+    "IEMG": "Emerging Markets",
+    # Sectors (UCITS)
+    "IXN": "Technology",
+    "IXG": "Financials",
+    "IXC": "Energy",
+    "IXJ": "Healthcare",
+    "EXH1": "Industrials",
+    "IXI": "Consumer Staples",
+    "JXI": "Utilities",
+    # Fixed Income (UCITS)
+    "EDV": "20+ Year Treasury",
+    "IBTM": "7-10 Year Treasury",
+    "AGGG": "US Aggregate Bond",
+    "LQDE": "Investment Grade Corporate",
+    # Alternatives (UCITS)
+    "GLDA": "Gold",
+    "IWDP": "US REITs",
+    "CMOD": "Commodities Broad",
 }
 
 # === BENCHMARKS ===
