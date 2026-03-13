@@ -74,6 +74,61 @@ def fetch_fred_data():
         return {}
 
 
+def fetch_global_market_data():
+    """Fetch regional equity indices, FX pairs, and commodity futures via yfinance."""
+    from agent.config import REGIONAL_INDICES, FX_TICKERS, COMMODITY_TICKERS
+
+    all_tickers = list(REGIONAL_INDICES.keys()) + list(FX_TICKERS.keys()) + list(COMMODITY_TICKERS.keys())
+    end = datetime.now()
+    start = end - timedelta(days=LOOKBACK_DAYS + 10)
+
+    logger.info(f"Fetching global market data: {len(all_tickers)} tickers...")
+    try:
+        data = yf.download(all_tickers, start=start.strftime("%Y-%m-%d"),
+                           end=end.strftime("%Y-%m-%d"), progress=False, auto_adjust=True)
+        if isinstance(data.columns, pd.MultiIndex):
+            prices = data["Close"]
+        else:
+            prices = data[["Close"]].rename(columns={"Close": all_tickers[0]})
+        prices = prices.dropna(how="all").ffill()
+        logger.info(f"Global data: {len(prices)} days, {prices.shape[1]} series")
+        return prices
+    except Exception as e:
+        logger.error(f"Global market data fetch failed: {e}")
+        return pd.DataFrame()
+
+
+def fetch_global_fred_data():
+    """Fetch international macro, credit spreads, and EPU data from FRED."""
+    from agent.config import FRED_SERIES_GLOBAL
+
+    if not FRED_API_KEY:
+        logger.warning("No FRED API key — skipping global FRED data")
+        return {}
+
+    try:
+        from fredapi import Fred
+        fred = Fred(api_key=FRED_API_KEY)
+        macro = {}
+        for series_id, name in FRED_SERIES_GLOBAL.items():
+            try:
+                data = fred.get_series(series_id, observation_start=(datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d"))
+                if data is not None and len(data) > 0:
+                    macro[series_id] = {
+                        "name": name,
+                        "latest": float(data.iloc[-1]),
+                        "prev": float(data.iloc[-2]) if len(data) > 1 else None,
+                        "change": float(data.iloc[-1] - data.iloc[-2]) if len(data) > 1 else 0,
+                    }
+            except Exception as e:
+                logger.warning(f"Global FRED series {series_id} failed: {e}")
+        logger.info(f"Global FRED data: {len(macro)}/{len(FRED_SERIES_GLOBAL)} series fetched")
+        return macro
+    except ImportError:
+        logger.warning("fredapi not installed — skipping global FRED data")
+        return {}
+
+
 def compute_market_signals(prices):
     """Compute derived signals from price data."""
     signals = {}
@@ -175,6 +230,239 @@ def compute_market_signals(prices):
     return signals
 
 
+def compute_regional_signals(global_prices):
+    """Compute momentum, volatility, and breadth signals for global equity regions."""
+    from agent.config import REGIONAL_INDICES
+
+    signals = {}
+    if global_prices.empty:
+        return signals
+
+    available = [t for t in REGIONAL_INDICES if t in global_prices.columns]
+    if not available:
+        return signals
+
+    momentum_21d, momentum_63d, vol_21d = {}, {}, {}
+    for ticker in available:
+        series = global_prices[ticker].dropna()
+        if len(series) >= 21:
+            momentum_21d[ticker] = float(series.iloc[-1] / series.iloc[-21] - 1)
+        if len(series) >= SHORT_LOOKBACK:
+            momentum_63d[ticker] = float(series.iloc[-1] / series.iloc[-SHORT_LOOKBACK] - 1)
+        if len(series) >= 22:
+            vol_21d[ticker] = float(series.pct_change().dropna().tail(21).std() * np.sqrt(252))
+
+    signals["regional_momentum_21d"] = momentum_21d
+    signals["regional_momentum_63d"] = momentum_63d
+    signals["regional_volatility_21d"] = vol_21d
+
+    if momentum_21d:
+        vals = list(momentum_21d.values())
+        signals["global_breadth_21d"] = float(sum(v > 0 for v in vals) / len(vals))
+        signals["regional_divergence_21d"] = float(np.std(vals))
+
+    # Europe composite
+    eu = ["^STOXX50E", "^GDAXI", "^FTSE", "^FCHI"]
+    eu_moms = [momentum_21d[t] for t in eu if t in momentum_21d]
+    if eu_moms:
+        signals["europe_composite_momentum_21d"] = float(np.mean(eu_moms))
+
+    # APAC composite
+    apac = ["^N225", "^HSI", "^AXJO", "^BSESN", "000001.SS"]
+    apac_moms = [momentum_21d[t] for t in apac if t in momentum_21d]
+    if apac_moms:
+        signals["apac_composite_momentum_21d"] = float(np.mean(apac_moms))
+
+    # EM equity stress
+    em = ["^BVSP", "^BSESN", "000001.SS", "^HSI", "^MXX"]
+    em_moms = [momentum_21d[t] for t in em if t in momentum_21d]
+    if em_moms:
+        signals["em_equity_momentum_21d"] = float(np.mean(em_moms))
+
+    return signals
+
+
+def compute_fx_signals(global_prices):
+    """Compute USD strength, EM currency stress, and safe-haven demand from FX pairs."""
+    from agent.config import FX_TICKERS
+
+    signals = {}
+    if global_prices.empty:
+        return signals
+
+    available = [t for t in FX_TICKERS if t in global_prices.columns]
+    if not available:
+        return signals
+
+    fx_mom_21d = {}
+    for ticker in available:
+        series = global_prices[ticker].dropna()
+        if len(series) >= 21:
+            fx_mom_21d[ticker] = float(series.iloc[-1] / series.iloc[-21] - 1)
+
+    signals["fx_momentum_21d"] = fx_mom_21d
+
+    # USD basket strength: EUR/GBP fall vs USD = USD strong; USD/JPY, USD/CNY rise = USD strong
+    usd_components = []
+    if "EURUSD=X" in fx_mom_21d:
+        usd_components.append(-fx_mom_21d["EURUSD=X"])
+    if "GBPUSD=X" in fx_mom_21d:
+        usd_components.append(-fx_mom_21d["GBPUSD=X"])
+    if "USDJPY=X" in fx_mom_21d:
+        usd_components.append(fx_mom_21d["USDJPY=X"])
+    if "USDCNY=X" in fx_mom_21d:
+        usd_components.append(fx_mom_21d["USDCNY=X"])
+    if usd_components:
+        signals["usd_basket_strength_21d"] = float(np.mean(usd_components))
+
+    # EM FX stress: USD appreciating vs EM currencies = pressure on EM assets
+    em_stress = [fx_mom_21d[t] for t in ["USDBRL=X", "USDINR=X", "USDCNY=X"] if t in fx_mom_21d]
+    if em_stress:
+        signals["em_fx_stress_21d"] = float(np.mean(em_stress))
+
+    # Safe-haven demand: JPY and CHF strengthening (USD/JPY and USD/CHF falling)
+    sh = []
+    if "USDJPY=X" in fx_mom_21d:
+        sh.append(-fx_mom_21d["USDJPY=X"])
+    if "USDCHF=X" in fx_mom_21d:
+        sh.append(-fx_mom_21d["USDCHF=X"])
+    if sh:
+        signals["safe_haven_demand_21d"] = float(np.mean(sh))
+
+    # AUD/JPY as risk-on/off barometer (positive = risk appetite)
+    if "AUDUSD=X" in fx_mom_21d and "USDJPY=X" in fx_mom_21d:
+        signals["audjpy_risk_signal_21d"] = float(fx_mom_21d["AUDUSD=X"] + fx_mom_21d["USDJPY=X"])
+
+    # CNY depreciation as China-specific stress proxy
+    if "USDCNY=X" in fx_mom_21d:
+        signals["cny_depreciation_21d"] = float(fx_mom_21d["USDCNY=X"])
+
+    return signals
+
+
+def compute_commodity_signals(global_prices):
+    """Compute oil regime, copper/gold growth signal, and broad commodity pressure."""
+    signals = {}
+    if global_prices.empty:
+        return signals
+
+    def _series(ticker):
+        if ticker in global_prices.columns:
+            s = global_prices[ticker].dropna()
+            return s if len(s) > 0 else None
+        return None
+
+    # Oil: trend, volatility, z-score spike detector
+    oil = _series("CL=F") or _series("BZ=F")
+    if oil is not None and len(oil) >= 21:
+        oil_rets = oil.pct_change().dropna()
+        signals["oil_trend_21d"] = float(oil.iloc[-1] / oil.iloc[-21] - 1)
+        signals["oil_volatility_21d"] = float(oil_rets.tail(21).std() * np.sqrt(252))
+        if len(oil) >= SHORT_LOOKBACK:
+            signals["oil_trend_63d"] = float(oil.iloc[-1] / oil.iloc[-SHORT_LOOKBACK] - 1)
+        ma20 = float(oil.tail(20).mean())
+        std20 = float(oil.tail(20).std())
+        signals["oil_zscore_20d"] = float((oil.iloc[-1] - ma20) / std20) if std20 > 0 else 0.0
+
+    # Brent–WTI spread: widens on supply disruptions / geopolitical premiums
+    brent, wti = _series("BZ=F"), _series("CL=F")
+    if brent is not None and wti is not None:
+        signals["brent_wti_spread"] = float(brent.iloc[-1] - wti.iloc[-1])
+
+    # Copper/Gold ratio: rising = growth optimism; falling = risk-off / recession fear
+    copper, gold = _series("HG=F"), _series("GC=F")
+    if copper is not None and gold is not None:
+        aligned = pd.DataFrame({"copper": copper, "gold": gold}).dropna()
+        if len(aligned) >= 21:
+            ratio_now = float(aligned["copper"].iloc[-1] / aligned["gold"].iloc[-1])
+            ratio_21d_ago = float(aligned["copper"].iloc[-21] / aligned["gold"].iloc[-21])
+            signals["copper_gold_ratio"] = ratio_now
+            signals["copper_gold_trend_21d"] = float(ratio_now / ratio_21d_ago - 1)
+
+    # Natural gas: European energy / supply-chain stress proxy
+    natgas = _series("NG=F")
+    if natgas is not None and len(natgas) >= 21:
+        signals["natgas_volatility_21d"] = float(natgas.pct_change().dropna().tail(21).std() * np.sqrt(252))
+        signals["natgas_trend_21d"] = float(natgas.iloc[-1] / natgas.iloc[-21] - 1)
+
+    # Broad commodity inflation pressure (equal-weighted basket)
+    basket_rets = []
+    for t in ["CL=F", "BZ=F", "HG=F", "GC=F", "ZW=F"]:
+        s = _series(t)
+        if s is not None and len(s) >= 21:
+            basket_rets.append(float(s.iloc[-1] / s.iloc[-21] - 1))
+    if basket_rets:
+        signals["broad_commodity_momentum_21d"] = float(np.mean(basket_rets))
+
+    return signals
+
+
+def compute_geopolitical_proxy_signals(macro_global):
+    """
+    Derive geopolitical and political risk proxies from financial stress indicators.
+
+    Uses:
+    - US Economic Policy Uncertainty index (USEPUINDXD) via FRED
+    - Credit spreads: US HY, US IG, EM Corp OAS via FRED
+    - International bond yields for rate-policy divergence
+
+    For direct political/conflict data see PROPOSED_ADDITIONAL_SOURCES in config.py.
+    """
+    signals = {}
+    if not macro_global:
+        return signals
+
+    def _get(series_id):
+        return macro_global.get(series_id)
+
+    # Economic Policy Uncertainty
+    epu = _get("USEPUINDXD")
+    if epu:
+        signals["us_epu_level"] = epu["latest"]
+        signals["us_epu_change"] = epu["change"]
+        signals["us_epu_elevated"] = bool(epu["latest"] > 200)
+
+    # US High Yield spreads (systemic credit/political stress)
+    hy = _get("BAMLH0A0HYM2")
+    if hy:
+        signals["us_hy_spread_bp"] = hy["latest"]
+        signals["us_hy_spread_change_bp"] = hy["change"]
+        signals["credit_stress_flag"] = bool(hy["latest"] > 500)
+
+    # EM credit spreads (emerging market political/economic risk)
+    em = _get("BAMLEMCBPIOAS")
+    if em:
+        signals["em_credit_spread_bp"] = em["latest"]
+        signals["em_credit_spread_change_bp"] = em["change"]
+        signals["em_credit_stress_flag"] = bool(em["latest"] > 400)
+
+    # US IG spreads
+    ig = _get("BAMLC0A0CM")
+    if ig:
+        signals["us_ig_spread_bp"] = ig["latest"]
+        signals["us_ig_spread_change_bp"] = ig["change"]
+
+    # International yields (rate-policy divergence signals)
+    for key, label in [("IRLTLT01EZM156N", "ea"), ("IRLTLT01JPM156N", "japan"), ("IRLTLT01GBM156N", "uk")]:
+        entry = _get(key)
+        if entry:
+            signals[f"{label}_10y_yield"] = entry["latest"]
+            signals[f"{label}_10y_yield_change"] = entry["change"]
+
+    # Composite financial stress score (0–1; higher = more stress)
+    stress_parts = []
+    if epu:
+        stress_parts.append(min(epu["latest"] / 400.0, 1.0))
+    if hy:
+        stress_parts.append(min(hy["latest"] / 1000.0, 1.0))
+    if em:
+        stress_parts.append(min(em["latest"] / 600.0, 1.0))
+    if stress_parts:
+        signals["composite_financial_stress"] = float(np.mean(stress_parts))
+
+    return signals
+
+
 def compute_return_covariance(prices, tickers=None, halflife=None):
     """Compute EWMA covariance matrix for allocation."""
     from agent.config import EWMA_HALFLIFE
@@ -205,6 +493,15 @@ def scan_market():
     signals = compute_market_signals(prices)
     macro = fetch_fred_data()
 
+    # --- Global expansion: regional indices, FX, commodities, international macro ---
+    global_prices = fetch_global_market_data()
+    macro_global = fetch_global_fred_data()
+
+    regional_signals = compute_regional_signals(global_prices)
+    fx_signals = compute_fx_signals(global_prices)
+    commodity_signals = compute_commodity_signals(global_prices)
+    geopolitical_proxy_signals = compute_geopolitical_proxy_signals(macro_global)
+
     tickers = [t for t in UNIVERSE.keys() if t in prices.columns]
     cov_matrix, returns = compute_return_covariance(prices, tickers)
 
@@ -224,14 +521,23 @@ def scan_market():
         "available_tickers": tickers,
         "signals": signals,
         "macro": macro,
+        "macro_global": macro_global,
+        "regional_signals": regional_signals,
+        "fx_signals": fx_signals,
+        "commodity_signals": commodity_signals,
+        "geopolitical_proxy_signals": geopolitical_proxy_signals,
         "expected_returns": expected_returns,
         "covariance_available": len(cov_matrix) > 0,
         "data_quality": {
             "tickers_fetched": len(tickers),
             "tickers_requested": len(UNIVERSE),
             "days_of_data": len(prices),
+            "global_tickers_fetched": global_prices.shape[1] if not global_prices.empty else 0,
+            "global_fred_series_fetched": len(macro_global),
         }
     }
 
-    logger.info(f"Scan complete: {len(tickers)} tickers, VIX={signals.get('vix_current', 'N/A')}")
+    breadth = regional_signals.get("global_breadth_21d")
+    breadth_str = f", global breadth={breadth:.0%}" if breadth is not None else ""
+    logger.info(f"Scan complete: {len(tickers)} tickers, VIX={signals.get('vix_current', 'N/A')}{breadth_str}")
     return state

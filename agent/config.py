@@ -118,6 +118,112 @@ FRED_SERIES = {
     "FEDFUNDS": "Fed Funds Rate",
 }
 
+# === GLOBAL EQUITY INDICES (via yfinance) — signals only, not investable universe ===
+REGIONAL_INDICES = {
+    # Europe
+    "^STOXX50E": "Euro Stoxx 50",
+    "^GDAXI":    "DAX (Germany)",
+    "^FTSE":     "FTSE 100 (UK)",
+    "^FCHI":     "CAC 40 (France)",
+    # Asia-Pacific
+    "^N225":     "Nikkei 225 (Japan)",
+    "^HSI":      "Hang Seng (Hong Kong)",
+    "^AXJO":     "ASX 200 (Australia)",
+    "^BSESN":    "BSE Sensex (India)",
+    "000001.SS": "Shanghai Composite (China)",
+    # Americas ex-US
+    "^BVSP":     "Bovespa (Brazil)",
+    "^MXX":      "IPC (Mexico)",
+}
+
+# === FX SPOT PAIRS (via yfinance) ===
+# Quoted as: EURUSD=X → EUR per 1 USD unit; USDJPY=X → JPY per 1 USD; etc.
+FX_TICKERS = {
+    "EURUSD=X":  "EUR/USD",
+    "GBPUSD=X":  "GBP/USD",
+    "USDJPY=X":  "USD/JPY",
+    "USDCNY=X":  "USD/CNY",
+    "USDBRL=X":  "USD/BRL",
+    "USDINR=X":  "USD/INR",
+    "AUDUSD=X":  "AUD/USD",
+    "USDCHF=X":  "USD/CHF",
+}
+
+# === COMMODITY FUTURES (via yfinance) ===
+COMMODITY_TICKERS = {
+    "CL=F":  "WTI Crude Oil",
+    "BZ=F":  "Brent Crude",
+    "NG=F":  "Natural Gas",
+    "HG=F":  "Copper",
+    "GC=F":  "Gold Futures",
+    "ZW=F":  "Wheat",
+    "SI=F":  "Silver",
+}
+
+# === GLOBAL FRED SERIES — international macro, credit spreads, policy uncertainty ===
+# All fetched with graceful per-series fallback; series that are unavailable are skipped.
+FRED_SERIES_GLOBAL = {
+    # --- International long-term bond yields (monthly, %) ---
+    "IRLTLT01EZM156N": "Euro Area 10Y Yield",
+    "IRLTLT01JPM156N": "Japan 10Y Yield",
+    "IRLTLT01GBM156N": "UK 10Y Yield",
+    # --- FRED FX rates (daily) ---
+    "DEXUSEU":  "USD per EUR",
+    "DEXJPUS":  "JPY per USD",
+    "DEXCHUS":  "CNY per USD",
+    "DEXBZUS":  "BRL per USD",
+    # --- International CPI (monthly, YoY %) ---
+    "CPALTT01EZM659N":  "Euro Area HICP YoY",
+    "JPNCPIALLMINMEI":  "Japan CPI YoY",
+    "GBRCPIALLMINMEI":  "UK CPI YoY",
+    # --- International unemployment (monthly, %) ---
+    "LRHUTTTTEZM156S":  "Euro Area Unemployment",
+    "LRHUTTTTJPM156S":  "Japan Unemployment",
+    # --- Credit / financial stress (daily, option-adjusted spread in bp) ---
+    "BAMLH0A0HYM2":     "US High Yield OAS",
+    "BAMLC0A0CM":       "US Inv Grade OAS",
+    "BAMLEMCBPIOAS":    "EM Corp Bond OAS",
+    # --- Economic policy uncertainty (daily index, US) ---
+    "USEPUINDXD":       "US Economic Policy Uncertainty",
+}
+
+# === PROPOSED ADDITIONAL FREE DATA SOURCES (not yet implemented) ===
+# These sources can further enrich geopolitical and political risk signals:
+#
+# 1. GDELT Project (gdeltproject.org/api.html) — free, no key required.
+#    Real-time global event/news database. Tone, conflict, protest, and cooperation
+#    counts by country. Queryable via BigQuery (free tier) or direct API.
+#
+# 2. World Bank Open Data API (api.worldbank.org/v2) — free, no key required.
+#    Political Stability, Rule of Law, Government Effectiveness (WGI, annual).
+#    Also: GDP growth, inflation, current account balance by country.
+#
+# 3. IMF Data API (imf.org/external/datamapper/api/v1) — free, no key required.
+#    WEO forecasts, global debt, fiscal balance, current account by country.
+#
+# 4. ECB Statistical Data Warehouse (data-api.ecb.europa.eu) — free, no key required.
+#    Euro area: sovereign yield spreads (BTP-Bund), bank lending rates, M3 money supply.
+#
+# 5. OECD Data API (stats.oecd.org/sdmx-json) — free, no key required.
+#    Composite Leading Indicators (CLI), consumer/business confidence by country.
+#
+# 6. GPR Index (matteoiacoviello.com/gpr.htm) — free CSV download (monthly).
+#    Caldara & Iacoviello's Geopolitical Risk Index: global + country-level.
+#    Can be cached locally and refreshed monthly via GitHub Actions.
+#
+# 7. Economic Policy Uncertainty — Global (policyuncertainty.com) — free CSV.
+#    Country-level EPU indices for EU, China, Russia, India, Brazil, and more.
+#    US daily EPU is also available via FRED (USEPUINDXD, already included above).
+#
+# 8. ACLED (acleddata.com) — free for non-commercial use (registration required).
+#    Armed conflict and protest event data by country/date. Useful for EM risk.
+#
+# 9. UN Comtrade (comtradeplus.un.org) — free tier (500 calls/day).
+#    Bilateral trade flows. Useful for trade-war and supply chain risk signals.
+#
+# 10. NewsAPI (newsapi.org) — free tier (100 req/day).
+#     Headline sentiment by keyword/country. Basic geopolitical news signal.
+
 # === PATHS ===
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "agent.db")
 DOCS_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "docs")
