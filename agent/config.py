@@ -87,9 +87,9 @@ REGIME_PARAMS = {
 }
 
 # Asset class mapping
-EQUITY_TICKERS = ["SPY", "QQQ", "IWM", "EFA", "VWO", "XLK", "XLF", "XLE", "XLV", "XLI", "XLP", "XLU"]
-BOND_TICKERS = ["TLT", "IEF", "AGG", "LQD"]
-ALT_TICKERS = ["GLD", "VNQ", "DBC"]
+EQUITY_TICKERS = ["CSPX", "EQQQ", "IEUS", "IEFA", "IEMG", "IXN", "IXG", "IXC", "IXJ", "EXH1", "IXI", "JXI"]
+BOND_TICKERS = ["EDV", "IBTM", "AGGG", "LQDE"]
+ALT_TICKERS = ["GLDA", "IWDP", "CMOD"]
 
 # === LEARNING PARAMETERS ===
 LEARNING_RATE = 0.1
