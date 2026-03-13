@@ -7,7 +7,7 @@
 
 ## Tech Stack
 - **Language:** Python 3.11
-- **Key libraries:** `yfinance`, `fredapi`, `scipy` (SLSQP optimizer), `pandas`, `numpy`
+- **Key libraries:** `yfinance`, `fredapi`, `requests`, `scipy` (SLSQP optimizer), `pandas`, `numpy`
 - **Storage:** SQLite (`data/agent.db`) — no external DB
 - **Reporting:** Static HTML → GitHub Pages + Gmail SMTP
 
@@ -16,8 +16,9 @@
 agent/          # Main Python package (all logic lives here)
   main.py       # Entry point; dispatches phases
   config.py     # All constants, universe, regime budgets, paths
-  scanner.py    # Fetches market data (yfinance + FRED), computes 20+ signals
-  regime.py     # Classifies market into 4 regimes via weighted composite score
+  scanner.py    # Fetches market data (yfinance + FRED), computes signals across US + global markets
+  datasources.py  # External free data sources (World Bank, IMF, OECD, GDELT, ECB, ACLED, NewsAPI)
+  regime.py     # Classifies market into 4 regimes via 12-signal weighted composite score
   allocator.py  # MVO portfolio optimization (scipy SLSQP)
   evaluator.py  # Weekly performance metrics vs 3 benchmarks
   learner.py    # Bayesian signal weight adaptation
@@ -52,21 +53,30 @@ python -m agent.main --phase full_cycle          # All 3 in sequence
 - **Fallback chain in allocator:** MVO → inverse-volatility → equal-weight if fewer than 3 assets survive post-processing.
 - **Learning is conservative:** ±20% max drift from default weights; only activates fully after 8 weeks of data; 0.95 forgetting factor.
 - **All configurable parameters in `config.py`** — never hardcoded in module logic.
+- **`classify_regime()` receives the full `market_state` dict** (not just bare signals), enabling all 12 regime score dimensions to draw on global data from scanner and external sources.
 
 ## Key Files & Modules
 | File | Why it matters |
 |------|----------------|
-| `agent/config.py` | Single source of truth: universe, regime budgets, paths, email config |
+| `agent/config.py` | Single source of truth: universe, regime budgets, paths, email config, SIGNALS list |
 | `agent/main.py` | Phase dispatcher; start here to trace any workflow |
-| `agent/scanner.py` | All external data fetching; `scan_market()` is the top-level call |
-| `agent/regime.py` | `classify_regime()` → returns `(regime_name, confidence, scores)` |
+| `agent/scanner.py` | All market data fetching; `scan_market()` is the top-level call; outputs full `market_state` dict |
+| `agent/datasources.py` | `fetch_external_sources()` — World Bank, IMF, OECD CLI, GDELT, ECB, ACLED (optional), NewsAPI (optional) |
+| `agent/regime.py` | `classify_regime(market_state)` → scores 12 signal dimensions → returns `(regime_name, confidence, scores)` |
 | `agent/allocator.py` | `build_allocation()` → dict of `{ticker: weight, "CASH": weight}` |
 | `agent/storage.py` | All DB interactions; `init_db()` must be called first |
 | `.github/workflows/` | Defines the full operational schedule and secrets injected |
 
 ## Dependencies & Integrations
-- **FRED API** (`fredapi`) — macro data (yield curve, unemployment, CPI, Fed Funds)
-- **yfinance** — daily OHLCV for 19 ETFs + VIX
+- **FRED API** (`fredapi`) — US + international macro (yield curve, unemployment, CPI, Fed Funds, credit spreads, EPU, EA/UK/Japan rates)
+- **yfinance** — daily OHLCV for 19 UCITS ETFs + VIX + 11 global equity indices + 8 FX pairs + 7 commodity futures
+- **World Bank Open Data** — governance indicators (political stability, rule of law) and macro per country; no key required
+- **IMF DataMapper** — GDP growth and inflation forecasts by country; no key required
+- **OECD SDMX-JSON API** — Composite Leading Indicators (CLI) per country; no key required
+- **GDELT 2.0 DOC API** — global event conflict intensity (30-day timelines, 6 geopolitical themes); no key required
+- **ECB Statistical Data Warehouse** — ECB key rates + M3 money supply (CSV format); no key required
+- **ACLED** — armed conflict events by region (optional; requires free registration)
+- **NewsAPI** — headline sentiment by topic (optional; free tier available)
 - **Gmail SMTP** — email delivery of reports
 
 ### Required environment variables / GitHub Secrets
@@ -74,6 +84,10 @@ python -m agent.main --phase full_cycle          # All 3 in sequence
 - `EMAIL_SENDER` — Gmail address used to send reports
 - `EMAIL_APP_PASSWORD` — Gmail App Password (requires 2FA on account)
 - `EMAIL_RECIPIENT` — destination email for reports
+
+### Optional environment variables (unlock additional data sources)
+- `ACLED_API_KEY` + `ACLED_EMAIL` — armed conflict event data (acleddata.com, free registration)
+- `NEWS_API_KEY` — headline sentiment analysis (newsapi.org, free tier)
 
 ## Conventions & Code Style
 - Each module exports exactly one top-level orchestrator function (e.g., `scan_market()`, `classify_regime()`, `build_allocation()`).
@@ -91,3 +105,6 @@ python -m agent.main --phase full_cycle          # All 3 in sequence
 - **Week IDs are integers** from the DB; `get_current_week_id()` returns `None` on empty DB (first run).
 - **Learning only affects weights after 8 weeks** — early runs use default signal weights from `config.py`.
 - **GitHub Pages must be enabled** (Settings → Pages → source: `main`/`master` branch, `/docs` folder) for reports to be publicly accessible.
+- **`SIGNALS` list gates the Bayesian learner** — any score dimension returned by `classify_regime()` that is not in `config.SIGNALS` is silently ignored and never learned from. The list currently has 12 entries (6 original US signals + 6 global).
+- **External sources degrade gracefully** — all 6 global regime score dimensions (`global_breadth`, `fx_stress`, `credit_conditions`, `geopolitical_risk`, `leading_indicators`, `global_monetary`) default to `0.0` (neutral) when their source API is unavailable or returns unexpected data.
+- **OECD SDMX-JSON format is complex** — `datasources.py` manually parses dimension indices; if the OECD API schema changes, `fetch_oecd_cli()` may silently return empty data.
