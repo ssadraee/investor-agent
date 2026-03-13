@@ -235,5 +235,12 @@ EMAIL_SENDER = os.environ.get("EMAIL_SENDER", "")
 EMAIL_APP_PASSWORD = os.environ.get("EMAIL_APP_PASSWORD", "")
 FRED_API_KEY = os.environ.get("FRED_API_KEY", "")
 
+# === OPTIONAL EXTERNAL SOURCE API KEYS ===
+# These keys are not required; the corresponding fetchers return {} when absent.
+# Add them as GitHub Secrets and they will be injected automatically.
+ACLED_API_KEY = os.environ.get("ACLED_API_KEY", "")   # acleddata.com — free registration
+ACLED_EMAIL   = os.environ.get("ACLED_EMAIL", "")     # email used when registering with ACLED
+NEWS_API_KEY  = os.environ.get("NEWS_API_KEY", "")    # newsapi.org — free tier (100 req/day)
+
 # === MISC ===
 ANNUALIZATION_FACTOR = 52  # Weekly to annual

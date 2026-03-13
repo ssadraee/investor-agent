@@ -502,6 +502,10 @@ def scan_market():
     commodity_signals = compute_commodity_signals(global_prices)
     geopolitical_proxy_signals = compute_geopolitical_proxy_signals(macro_global)
 
+    # --- External data sources (World Bank, IMF, OECD, GDELT, ECB, ACLED, NewsAPI) ---
+    from agent.datasources import fetch_external_sources
+    external_sources = fetch_external_sources()
+
     tickers = [t for t in UNIVERSE.keys() if t in prices.columns]
     cov_matrix, returns = compute_return_covariance(prices, tickers)
 
@@ -526,6 +530,7 @@ def scan_market():
         "fx_signals": fx_signals,
         "commodity_signals": commodity_signals,
         "geopolitical_proxy_signals": geopolitical_proxy_signals,
+        "external_sources": external_sources,
         "expected_returns": expected_returns,
         "covariance_available": len(cov_matrix) > 0,
         "data_quality": {
@@ -534,6 +539,7 @@ def scan_market():
             "days_of_data": len(prices),
             "global_tickers_fetched": global_prices.shape[1] if not global_prices.empty else 0,
             "global_fred_series_fetched": len(macro_global),
+            "external_sources_ok": sum(1 for v in external_sources.values() if v),
         }
     }
 
