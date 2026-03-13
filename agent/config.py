@@ -11,34 +11,34 @@ TRANSACTION_COST_BPS = 10   # 0.10% conservative estimate
 # === INVESTMENT UNIVERSE ===
 # Liquid ETFs spanning asset classes, sectors, geographies
 UNIVERSE = {
-    # US Broad Market
-    "SPY": "S&P 500",
-    "QQQ": "Nasdaq 100",
-    "IWM": "Russell 2000",
-    # International
-    "EFA": "EAFE Developed Markets",
-    "VWO": "Emerging Markets",
-    # Sectors
-    "XLK": "Technology",
-    "XLF": "Financials",
-    "XLE": "Energy",
-    "XLV": "Healthcare",
-    "XLI": "Industrials",
-    "XLP": "Consumer Staples",
-    "XLU": "Utilities",
-    # Fixed Income
-    "TLT": "20+ Year Treasury",
-    "IEF": "7-10 Year Treasury",
-    "AGG": "US Aggregate Bond",
-    "LQD": "Investment Grade Corporate",
-    # Alternatives
-    "GLD": "Gold",
-    "VNQ": "US REITs",
-    "DBC": "Commodities Broad",
+    # US Broad Market (UCITS)
+    "CSPX": "S&P 500",
+    "EQQQ": "Nasdaq 100",
+    "IEUS": "Russell 2000",
+    # International (UCITS)
+    "IEFA": "EAFE Developed Markets",
+    "IEMG": "Emerging Markets",
+    # Sectors (UCITS)
+    "IXN": "Technology",
+    "IXG": "Financials",
+    "IXC": "Energy",
+    "IXJ": "Healthcare",
+    "EXH1": "Industrials",
+    "IXI": "Consumer Staples",
+    "JXI": "Utilities",
+    # Fixed Income (UCITS)
+    "EDV": "20+ Year Treasury",
+    "IBTM": "7-10 Year Treasury",
+    "AGGG": "US Aggregate Bond",
+    "LQDE": "Investment Grade Corporate",
+    # Alternatives (UCITS)
+    "GLDA": "Gold",
+    "IWDP": "US REITs",
+    "CMOD": "Commodities Broad",
 }
 
 # === BENCHMARKS ===
-BENCHMARK_TICKER = "SPY"
+BENCHMARK_TICKER = "CSPX"
 
 # === ALLOCATION CONSTRAINTS ===
 MAX_POSITION_WEIGHT = 0.40       # 40% max per asset
@@ -87,9 +87,9 @@ REGIME_PARAMS = {
 }
 
 # Asset class mapping
-EQUITY_TICKERS = ["SPY", "QQQ", "IWM", "EFA", "VWO", "XLK", "XLF", "XLE", "XLV", "XLI", "XLP", "XLU"]
-BOND_TICKERS = ["TLT", "IEF", "AGG", "LQD"]
-ALT_TICKERS = ["GLD", "VNQ", "DBC"]
+EQUITY_TICKERS = ["CSPX", "EQQQ", "IEUS", "IEFA", "IEMG", "IXN", "IXG", "IXC", "IXJ", "EXH1", "IXI", "JXI"]
+BOND_TICKERS = ["EDV", "IBTM", "AGGG", "LQDE"]
+ALT_TICKERS = ["GLDA", "IWDP", "CMOD"]
 
 # === LEARNING PARAMETERS ===
 LEARNING_RATE = 0.1
