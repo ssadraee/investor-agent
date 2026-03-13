@@ -19,7 +19,8 @@ from agent.evaluator import evaluate_week
 from agent.learner import learn_and_update, get_current_weights
 from agent.reporter import (
     generate_report, generate_scan_report, generate_evaluate_report,
-    save_report, send_email
+    save_report, send_email,
+    notify_telegram_scan, notify_telegram_eval, notify_telegram_report,
 )
 from agent.config import UNIVERSE
 
@@ -113,6 +114,8 @@ def phase_scan_and_allocate():
     else:
         logger.warning("Scan & allocation email not sent (check configuration)")
 
+    notify_telegram_scan(week_id, regime, regime_conf, allocation)
+
     return week_id
 
 
@@ -149,6 +152,8 @@ def phase_evaluate():
         logger.info("Evaluation email report sent successfully")
     else:
         logger.warning("Evaluation email not sent (check configuration)")
+
+    notify_telegram_eval(week_id, metrics)
 
     return metrics
 
@@ -210,6 +215,8 @@ def phase_learn_and_report():
         logger.info("Email report sent successfully")
     else:
         logger.warning("Email not sent (check configuration)")
+
+    notify_telegram_report(week_id, regime, regime_confidence, metrics, learning_result)
 
     logger.info(f"Week {week_id} complete.")
     return week_id
