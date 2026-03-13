@@ -56,7 +56,7 @@ def phase_scan_and_allocate():
     # 3. Classify regime
     weights, confidence = get_current_weights()
     regime, regime_conf, regime_scores = classify_regime(
-        market_state.get("signals", {}), weights
+        market_state, weights
     )
     logger.info(f"Regime: {regime} (confidence: {regime_conf:.2f})")
 

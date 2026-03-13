@@ -98,6 +98,8 @@ MIN_WEEKS_BEFORE_DRIFT = 8       # Weeks before weights can deviate >20%
 MAX_WEIGHT_DEVIATION = 0.20      # Max deviation from prior
 
 # === SIGNAL NAMES ===
+# First 6: original US-centric market signals
+# Last 6: global data sources wired in via regime.py (see classify_regime)
 SIGNALS = [
     "momentum",
     "mean_reversion",
@@ -105,6 +107,14 @@ SIGNALS = [
     "macro_trend",
     "yield_curve",
     "cross_asset_momentum",
+    # High-frequency global signals (daily, from yfinance + FRED)
+    "global_breadth",       # % of world equity markets rising + OECD CLI breadth
+    "fx_stress",            # safe-haven demand (JPY/CHF) + EM currency pressure
+    "credit_conditions",    # HY/EM credit spreads + EPU policy uncertainty
+    # Lower-frequency external sources (weekly/monthly)
+    "geopolitical_risk",    # GDELT conflict intensity + World Bank political stability
+    "leading_indicators",   # OECD CLI momentum + IMF GDP growth forecasts
+    "global_monetary",      # ECB rate direction + M3 + international yield trends
 ]
 
 # === FRED SERIES (free API) ===
